@@ -3,6 +3,43 @@
 #include <string.h>
 #include <curl/curl.h>
 
+#ifdef _WIN32
+#	pragma warning(push)
+#	pragma warning(disable : 5105)
+#	include <Windows.h>
+#	pragma warning(pop)
+#else
+
+#	include <time.h>
+#   include <sys/time.h>
+
+#endif
+
+#ifdef _WIN32
+void print_current_time(const char* info) {
+    SYSTEMTIME current_time;
+
+    GetLocalTime(&current_time);
+    printf("%s%.2u.%.2u.%.4u %.2u:%.2u:%.2u.%.3u\n", info, current_time.wDay,
+               current_time.wMonth, current_time.wYear, current_time.wHour, current_time.wMinute, current_time.wSecond,
+               current_time.wMilliseconds);
+}
+
+#else  // _WIN32
+
+void print_current_time(const char *info) {
+    struct timeval tv;
+    struct tm *tm;
+
+    gettimeofday(&tv, NULL);
+    tm = localtime(&tv.tv_sec);
+
+    printf("%s%.2u.%.2u.%.4u %.2u:%.2u:%.2u.%.3u\n", info, tm->tm_mday, tm->tm_mon + 1,
+           tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec, (int) (tv.tv_usec / 1000));
+}
+
+#endif
+
 typedef struct response_t {
     char *data;
     size_t size;
@@ -132,6 +169,8 @@ const char *symbol_type_to_string(symbol_type_t symbol_type) {
 
 void get_symbols_by_type(const char *base_url, const char *user, const char *password, symbol_type_t symbol_type,
                          response_t *response) {
+    print_current_time("get_symbols_by_type::begin: ");
+
     CREATE_BUFFER(2048);
 
     /*
@@ -141,12 +180,18 @@ void get_symbols_by_type(const char *base_url, const char *user, const char *pas
     snprintf(buffer, BUFFER_SIZE, "%s?TYPE=%s", base_url, symbol_type_to_string(symbol_type));
 
     perform_get(buffer, user, password, response);
+
+    print_current_time("get_symbols_by_type::end: ");
 }
 
 void get_symbols_by_type_starting_with_symbol_name(const char *base_url, const char *user, const char *password,
                                                    symbol_type_t symbol_type, const char *symbol_name_start,
                                                    response_t *response) {
+    print_current_time("get_symbols_by_type_starting_with_symbol_name::begin: ");
+
     if (symbol_name_start == NULL) {
+        print_current_time("get_symbols_by_type_starting_with_symbol_name::end: ");
+
         return;
     }
 
@@ -159,11 +204,17 @@ void get_symbols_by_type_starting_with_symbol_name(const char *base_url, const c
              symbol_name_start);
 
     perform_get(buffer, user, password, response);
+
+    print_current_time("get_symbols_by_type_starting_with_symbol_name::end: ");
 }
 
 void get_expire_date_of_option(const char *base_url, const char *user, const char *password, const char *symbol,
                                response_t *response) {
+    print_current_time("get_expire_date_of_option::begin: ");
+
     if (symbol == NULL) {
+        print_current_time("get_expire_date_of_option::end: ");
+
         return;
     }
 
@@ -177,13 +228,19 @@ void get_expire_date_of_option(const char *base_url, const char *user, const cha
              symbol);
 
     perform_get(buffer, user, password, response);
+
+    print_current_time("get_expire_date_of_option::end: ");
 }
 
 void get_call_or_put_strike_price_on_specific_expire_date_of_option(const char *base_url, const char *user,
                                                                     const char *password, const char *symbol,
                                                                     const char *expire_date, int is_call,
                                                                     response_t *response) {
+    print_current_time("get_call_or_put_strike_price_on_specific_expire_date_of_option::begin: ");
+
     if (symbol == NULL || expire_date == NULL) {
+        print_current_time("get_call_or_put_strike_price_on_specific_expire_date_of_option::end: ");
+
         return;
     }
 
@@ -202,10 +259,18 @@ void get_call_or_put_strike_price_on_specific_expire_date_of_option(const char *
              symbol, cfi, expire_date);
 
     perform_get(buffer, user, password, response);
+
+    print_current_time("get_call_or_put_strike_price_on_specific_expire_date_of_option::end: ");
 }
 
 
-int main() {
+int main(int argc, char* argv[]) {
+    int show_response_data = 1;
+
+    if (argc == 2 && strcmpi(argv[1], "silent") == 0) {
+        show_response_data = 0;
+    }
+
     /* https://tools.dxfeed.com/ipf?help */
 
     const char *ipf_url = "https://tools.dxfeed.com/ipf";
@@ -221,7 +286,9 @@ int main() {
         get_symbols_by_type(ipf_url, user, password, ST_STOCK, &response);
 
         if (response.data != NULL) {
-            printf("\n\nALL STOCK SYMBOLS\n----------\n%s\n----------\n", response.data);
+            if (show_response_data) {
+                printf("\n\nALL STOCK SYMBOLS\n----------\n%s\n----------\n", response.data);
+            }
 
             free(response.data);
         }
@@ -236,8 +303,10 @@ int main() {
                                                       &response);
 
         if (response.data != NULL) {
-            printf("\n\nALL STOCK SYMBOLS STARTING WITH \"%s\"\n----------\n%s\n----------\n",
-                   symbol_name_start, response.data);
+            if (show_response_data) {
+                printf("\n\nALL STOCK SYMBOLS STARTING WITH \"%s\"\n----------\n%s\n----------\n",
+                       symbol_name_start, response.data);
+            }
 
             free(response.data);
         }
@@ -255,8 +324,10 @@ int main() {
                                   &response);
 
         if (response.data != NULL) {
-            printf("\n\nALL EXPIRE DATES OF STOCK OPTIONS \"%s\"\n----------\n%s\n----------\n",
-                   symbol_name, response.data);
+            if (show_response_data) {
+                printf("\n\nALL EXPIRE DATES OF STOCK OPTIONS \"%s\"\n----------\n%s\n----------\n",
+                       symbol_name, response.data);
+            }
 
             free(response.data);
         }
@@ -279,8 +350,10 @@ int main() {
                     &response);
 
             if (response.data != NULL) {
-                printf("\n\nCALL STRIKE PRICES ON %s OF STOCK OPTIONS \"%s\"\n----------\n%s\n----------\n",
-                       expire_date, symbol_name, response.data);
+                if (show_response_data) {
+                    printf("\n\nCALL STRIKE PRICES ON %s OF STOCK OPTIONS \"%s\"\n----------\n%s\n----------\n",
+                           expire_date, symbol_name, response.data);
+                }
 
                 free(response.data);
             }
@@ -299,8 +372,10 @@ int main() {
                     &response);
 
             if (response.data != NULL) {
-                printf("\n\nPUT STRIKE PRICES ON %s OF STOCK OPTIONS \"%s\"\n----------\n%s\n----------\n",
-                       expire_date, symbol_name, response.data);
+                if (show_response_data) {
+                    printf("\n\nPUT STRIKE PRICES ON %s OF STOCK OPTIONS \"%s\"\n----------\n%s\n----------\n",
+                           expire_date, symbol_name, response.data);
+                }
 
                 free(response.data);
             }
